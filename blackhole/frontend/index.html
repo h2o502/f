@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackhole - AI 黑洞文件夹</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部导航 -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <span class="brand-icon">●</span>
+                <span class="brand-text">Blackhole</span>
+            </div>
+            <div class="nav-tabs">
+                <button class="tab active" data-tab="search">搜索</button>
+                <button class="tab" data-tab="files">文件</button>
+                <button class="tab" data-tab="compare">比对</button>
+                <button class="tab" data-tab="manage">管理</button>
+                <button class="tab" data-tab="settings">设置</button>
+            </div>
+            <div class="nav-status">
+                <span id="index-status" class="status-badge">未连接</span>
+            </div>
+        </nav>
+
+        <!-- 搜索页 -->
+        <div id="tab-search" class="tab-content active">
+            <div class="search-container">
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="输入关键词或自然语言描述，搜索你的文件..." autofocus>
+                    <div class="search-modes">
+                        <button class="mode-btn active" data-mode="quick">快速搜索</button>
+                        <button class="mode-btn" data-mode="deep">深度检索</button>
+                    </div>
+                    <button id="search-btn" class="search-btn">搜索</button>
+                </div>
+                <div id="search-results" class="results-container"></div>
+            </div>
+        </div>
+
+        <!-- 文件列表页 -->
+        <div id="tab-files" class="tab-content">
+            <div class="files-header">
+                <h2>已索引文件</h2>
+                <div class="files-actions">
+                    <button id="btn-start-index" class="btn btn-primary">开始索引</button>
+                    <span id="file-count" class="file-count"></span>
+                </div>
+            </div>
+            <div id="index-progress" class="progress-bar" style="display:none">
+                <div class="progress-fill"></div>
+                <span class="progress-text"></span>
+            </div>
+            <div id="file-list" class="file-list"></div>
+        </div>
+
+        <!-- 比对页 -->
+        <div id="tab-compare" class="tab-content">
+            <div class="compare-container">
+                <h2>文件比对</h2>
+                <p class="compare-hint">选择两个文件进行 AI 智能比对</p>
+                <div class="compare-selectors">
+                    <div class="compare-file">
+                        <label>文件 A</label>
+                        <select id="compare-file-1" class="compare-select">
+                            <option value="">选择文件...</option>
+                        </select>
+                    </div>
+                    <div class="compare-vs">VS</div>
+                    <div class="compare-file">
+                        <label>文件 B</label>
+                        <select id="compare-file-2" class="compare-select">
+                            <option value="">选择文件...</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="btn-compare" class="btn btn-primary">开始比对</button>
+                <div id="compare-result" class="compare-result"></div>
+            </div>
+        </div>
+
+        <!-- 管理页 -->
+        <div id="tab-manage" class="tab-content">
+            <div class="manage-container">
+                <h2>文件管理</h2>
+                <div class="manage-sections">
+                    <!-- 批量重命名 -->
+                    <div class="manage-card">
+                        <h3>批量重命名</h3>
+                        <p>选择文件并用自然语言描述重命名规则</p>
+                        <div id="rename-file-list" class="manage-file-list"></div>
+                        <input type="text" id="rename-instruction" placeholder="例如：按日期_项目名_版本号 格式重命名">
+                        <button id="btn-batch-rename" class="btn btn-primary">执行重命名</button>
+                    </div>
+                    <!-- 结构重整 -->
+                    <div class="manage-card">
+                        <h3>AI 结构建议</h3>
+                        <p>让 AI 分析文件内容，建议最优的文件夹分类结构</p>
+                        <button id="btn-reorganize" class="btn btn-primary">生成建议</button>
+                        <div id="reorganize-result" class="reorganize-result"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置页 -->
+        <div id="tab-settings" class="tab-content">
+            <div class="settings-container">
+                <h2>设置</h2>
+                <div class="settings-form">
+                    <div class="form-group">
+                        <label>监听文件夹</label>
+                        <div class="input-row">
+                            <input type="text" id="setting-folder" placeholder="选择一个文件夹作为黑洞...">
+                            <button id="btn-select-folder" class="btn btn-secondary">浏览</button>
+                        </div>
+                        <small>所有放入此文件夹的文件将被自动索引</small>
+                    </div>
+                    <div class="form-group">
+                        <label>API 地址</label>
+                        <input type="text" id="setting-api-url" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" id="setting-api-key" placeholder="sk-...">
+                    </div>
+                    <div class="form-group">
+                        <label>快速模型</label>
+                        <select id="setting-model" class="setting-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>深度模型</label>
+                        <select id="setting-deep-model" class="setting-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="setting-auto-rename">
+                            自动应用 AI 建议的文件名
+                        </label>
+                        <small>关闭后，AI 建议的名称仅作为参考，需手动确认</small>
+                    </div>
+                    <button id="btn-save-settings" class="btn btn-primary">保存设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件详情弹窗 -->
+    <div id="file-modal" class="modal" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">文件详情</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
