@@ -32,7 +32,10 @@ class Config:
     def load(self):
         if self.config_file.exists():
             with open(self.config_file, "r", encoding="utf-8") as f:
-                self._config = json.load(f)
+                saved = json.load(f)
+            # 合并：以默认配置为基础，用已保存的值覆盖
+            self._config = DEFAULT_CONFIG.copy()
+            self._config.update(saved)
         else:
             self._config = DEFAULT_CONFIG.copy()
             self.save()

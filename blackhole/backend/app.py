@@ -48,12 +48,13 @@ class SetFolderRequest(BaseModel):
 
 @app.get("/api/config")
 async def get_config():
-    """获取配置"""
+    """获取配置（API Key 不返回完整值，避免泄露）"""
     c = config.all
-    # 隐藏 API Key 中间部分
     key = c.get("api_key", "")
-    if len(key) > 10:
-        c["api_key"] = key[:6] + "****" + key[-4:]
+    # 不返回完整 api_key，用脱敏值和标志位代替
+    c["api_key"] = ""  # 清空，前端用 placeholder 显示脱敏值
+    c["api_key_masked"] = key[:6] + "****" + key[-4:] if len(key) > 10 else "****"
+    c["has_api_key"] = bool(key)
     return c
 
 @app.post("/api/config")
@@ -62,7 +63,8 @@ async def update_config(req: ConfigRequest):
     updates = {}
     if req.watch_folder:
         updates["watch_folder"] = req.watch_folder
-    if req.api_key:
+    # 只有当用户输入了非占位符的 key 时才更新
+    if req.api_key and "****" not in req.api_key:
         updates["api_key"] = req.api_key
     if req.api_url:
         updates["api_url"] = req.api_url
@@ -72,6 +74,8 @@ async def update_config(req: ConfigRequest):
         updates["deep_model"] = req.deep_model
     updates["auto_rename"] = req.auto_rename
     config.update(updates)
+    # 刷新 AI 服务配置
+    ai_service.refresh_config()
     return {"status": "ok"}
 
 @app.post("/api/folder")
@@ -87,7 +91,7 @@ async def set_watch_folder(req: SetFolderRequest):
         watcher.stop()
     except Exception:
         pass
-    watcher.set_loop(asyncio.get_event_loop())
+    watcher.set_loop(asyncio.get_running_loop())
     watcher.start(folder)
 
     return {"status": "ok", "folder": folder}
@@ -294,11 +298,17 @@ def start_app(open_browser: bool = True, port: int = 8765):
         import threading
         threading.Thread(target=_open, daemon=True).start()
 
-    # 如果有配置的监听文件夹，自动启动监听
-    folder = config.watch_folder
-    if folder and os.path.isdir(folder):
-        loop = asyncio.new_event_loop()
+    # 启动时自动设置 watcher 的事件循环为当前循环
+    @app.on_event("startup")
+    async def _startup():
+        loop = asyncio.get_event_loop()
         watcher.set_loop(loop)
-        watcher.start(folder)
+        # 如果有配置的监听文件夹，自动启动监听
+        folder = config.watch_folder
+        if folder and os.path.isdir(folder):
+            try:
+                watcher.start(folder)
+            except Exception as e:
+                print(f"启动文件监听失败: {e}")
 
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

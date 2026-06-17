@@ -78,15 +78,16 @@ class BlackholeHandler(FileSystemEventHandler):
             except RuntimeError:
                 asyncio.run(self._index_file(file_path))
 
-    async def _index_file(self, file_path: str):
+    async def _index_file(self, file_path: str, update_status: bool = True):
         """索引单个文件"""
         try:
-            self._indexing_status = {
-                "running": True,
-                "current": Path(file_path).name,
-                "progress": 0,
-                "total": 1,
-            }
+            if update_status:
+                self._indexing_status = {
+                    "running": True,
+                    "current": Path(file_path).name,
+                    "progress": 0,
+                    "total": 1,
+                }
 
             # 1. 提取文本
             content = extract_text(file_path)
@@ -115,34 +116,35 @@ class BlackholeHandler(FileSystemEventHandler):
             if config.get("auto_rename") and ai_name:
                 self._rename_file(file_path, ai_name, file_id)
 
-            self._indexing_status = {
-                "running": False,
-                "current": "",
-                "progress": 1,
-                "total": 1,
-            }
+            if update_status:
+                self._indexing_status = {
+                    "running": False,
+                    "current": "",
+                    "progress": 1,
+                    "total": 1,
+                }
         except Exception as e:
             print(f"索引文件失败 {file_path}: {e}")
-            self._indexing_status = {
-                "running": False,
-                "current": f"错误: {str(e)}",
-                "progress": 0,
-                "total": 1,
-            }
+            if update_status:
+                self._indexing_status = {
+                    "running": False,
+                    "current": f"错误: {str(e)}",
+                    "progress": 0,
+                    "total": 1,
+                }
         finally:
             self._processing.discard(file_path)
 
     def _rename_file(self, old_path: str, new_name: str, file_id: int):
-        """重命名文件"""
+        """重命名文件（更新索引路径，不删除记录）"""
         try:
             old = Path(old_path)
             new_path = old.parent / new_name
             if new_path.exists() and new_path != old:
                 return  # 不覆盖
             old.rename(new_path)
-            # 更新索引
-            indexer.remove(old_path)
-            indexer.update_rename(file_id, new_name)
+            # 更新索引中的路径和文件名，不删除记录
+            indexer.update_rename(file_id, new_name, str(new_path), old.name)
         except Exception as e:
             print(f"重命名失败 {old_path}: {e}")
 
@@ -156,7 +158,7 @@ class BlackholeHandler(FileSystemEventHandler):
         for i, f in enumerate(files):
             self._indexing_status["progress"] = i
             self._indexing_status["current"] = f.name
-            await self._index_file(str(f))
+            await self._index_file(str(f), update_status=False)
 
         self._indexing_status = {"running": False, "current": "", "progress": total, "total": total}
 
@@ -165,7 +167,7 @@ class FileWatcher:
     """文件监听器"""
 
     def __init__(self):
-        self.observer = Observer()
+        self.observer = None
         self.handler = BlackholeHandler()
         self._loop = None
 
@@ -175,12 +177,16 @@ class FileWatcher:
 
     def start(self, folder: str):
         """开始监听文件夹"""
+        # 每次创建新的 Observer，避免 stop 后无法重启
+        self.observer = Observer()
         self.observer.schedule(self.handler, folder, recursive=True)
         self.observer.start()
 
     def stop(self):
-        self.observer.stop()
-        self.observer.join()
+        if self.observer:
+            self.observer.stop()
+            self.observer.join()
+            self.observer = None
 
     @property
     def status(self) -> dict:

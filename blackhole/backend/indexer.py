@@ -38,12 +38,11 @@ class Indexer:
             CREATE INDEX IF NOT EXISTS idx_content_hash ON files(content_hash);
         """)
 
-        # 创建 FTS5 虚拟表（如果不存在）
+        # 创建 FTS5 虚拟表（contentless 模式，手动管理内容）
         try:
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
-                    filename, tags, summary, content_text,
-                    content='files', content_rowid='id'
+                    filename, tags, summary, content_text
                 )
             """)
         except sqlite3.OperationalError:
@@ -114,9 +113,10 @@ class Indexer:
                 ))
                 file_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-            # 更新 FTS
+            # 更新 FTS（先删旧的，再插新的，用 rowid 关联）
             try:
-                conn.execute("INSERT OR REPLACE INTO files_fts (rowid, filename, tags, summary, content_text) VALUES (?, ?, ?, ?, ?)",
+                conn.execute("DELETE FROM files_fts WHERE rowid = ?", (file_id,))
+                conn.execute("INSERT INTO files_fts (rowid, filename, tags, summary, content_text) VALUES (?, ?, ?, ?, ?)",
                     (file_id, path.name, ", ".join(tags), summary, content[:10000]))
             except sqlite3.OperationalError:
                 pass
@@ -269,14 +269,22 @@ class Indexer:
         finally:
             conn.close()
 
-    def update_rename(self, file_id: int, new_name: str, original_filename: str = None):
+    def update_rename(self, file_id: int, new_name: str, new_path: str = None, original_filename: str = None):
         """更新文件重命名信息"""
         conn = self._conn()
         try:
-            conn.execute("""
-                UPDATE files SET filename = ?, ai_name = ?, original_filename = COALESCE(?, original_filename)
-                WHERE id = ?
-            """, (new_name, new_name, original_filename, file_id))
+            if new_path:
+                conn.execute("""
+                    UPDATE files SET filename = ?, ai_name = ?, path = ?,
+                        original_filename = COALESCE(?, original_filename)
+                    WHERE id = ?
+                """, (new_name, new_name, new_path, original_filename, file_id))
+            else:
+                conn.execute("""
+                    UPDATE files SET filename = ?, ai_name = ?,
+                        original_filename = COALESCE(?, original_filename)
+                    WHERE id = ?
+                """, (new_name, new_name, original_filename, file_id))
             conn.commit()
         finally:
             conn.close()

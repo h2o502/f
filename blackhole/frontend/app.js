@@ -396,7 +396,10 @@ async function loadSettings() {
         const cfg = await api('/api/config');
         document.getElementById('setting-folder').value = cfg.watch_folder || '';
         document.getElementById('setting-api-url').value = cfg.api_url || '';
-        document.getElementById('setting-api-key').value = cfg.api_key || '';
+        // 不把脱敏值填入 input，用 placeholder 提示
+        const keyInput = document.getElementById('setting-api-key');
+        keyInput.value = '';
+        keyInput.placeholder = cfg.has_api_key ? `已配置: ${cfg.api_key_masked}（留空则不修改）` : '请输入 API Key';
         document.getElementById('setting-auto-rename').checked = cfg.auto_rename || false;
 
         // 加载模型列表

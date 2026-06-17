@@ -25,6 +25,8 @@ def extract_text(file_path: str) -> str:
             return _extract_xlsx(file_path)
         elif ext in (".pptx", ".ppt"):
             return _extract_pptx(file_path)
+        elif ext in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
+            return _extract_image(file_path)
         else:
             return f"[不支持的文件格式: {ext}]"
     except Exception as e:
@@ -126,6 +128,28 @@ def _extract_pptx(file_path: str) -> str:
     if len(content) > 50000:
         content = content[:50000] + "\n...[内容已截断]"
     return content or "[PPT 无可提取文本]"
+
+
+def _extract_image(file_path: str) -> str:
+    """提取图片基本信息（无 OCR，仅元数据）"""
+    from PIL import Image
+    try:
+        img = Image.open(file_path)
+        info = f"[图片文件] 格式: {img.format}, 尺寸: {img.size[0]}x{img.size[1]}, 模式: {img.mode}"
+        # 提取 EXIF 信息
+        exif = img.getexif()
+        if exif:
+            exif_items = []
+            for tag_id, value in exif.items():
+                tag = str(tag_id)
+                if isinstance(value, str) and len(value) < 200:
+                    exif_items.append(f"{tag}: {value}")
+            if exif_items:
+                info += "\nEXIF:\n" + "\n".join(exif_items[:20])
+        img.close()
+        return info
+    except Exception as e:
+        return f"[图片信息读取失败: {e}]"
 
 
 def get_file_info(file_path: str) -> dict:

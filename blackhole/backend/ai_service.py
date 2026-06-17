@@ -1,11 +1,29 @@
 """AI 服务 - 云端 API 调用"""
 import json
+import re
 import httpx
 from backend.config import config
 
 
+# 文件名非法字符（Windows + macOS + Linux 并集）
+_ILLEGAL_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\n\r\t]')
+
+
+def sanitize_filename(name: str) -> str:
+    """清理文件名中的非法字符"""
+    name = _ILLEGAL_FILENAME_CHARS.sub('_', name).strip()
+    # 限制长度
+    if len(name) > 200:
+        name = name[:200]
+    return name
+
+
 class AIService:
     def __init__(self):
+        self.refresh_config()
+
+    def refresh_config(self):
+        """从 config 重新读取配置（用户修改设置后调用）"""
         self.api_url = config.get("api_url")
         self.api_key = config.get("api_key")
         self.model = config.get("model", "qwen3.6-flash")
@@ -60,10 +78,11 @@ class AIService:
         """为文件建议新名称"""
         snippet = content[:2000] if content else "[无文本内容]"
         messages = [
-            {"role": "system", "content": "你是一个文件命名专家。根据文件内容，建议一个简洁、有意义的文件名。保留原始扩展名。只输出新文件名，不要其他内容。"},
+            {"role": "system", "content": "你是一个文件命名专家。根据文件内容，建议一个简洁、有意义的文件名。保留原始扩展名。只输出新文件名，不要其他内容，不要换行。"},
             {"role": "user", "content": f"原文件名: {filename}\n\n内容摘要:\n{snippet}"}
         ]
-        return await self.chat(messages, max_tokens=100)
+        name = await self.chat(messages, max_tokens=100)
+        return sanitize_filename(name)
 
     async def deep_search(self, query: str, candidates: list) -> list:
         """深度搜索：用 LLM 从候选文件中筛选最相关的"""
@@ -132,7 +151,12 @@ class AIService:
                 result = result.split("```json")[1].split("```")[0]
             elif "```" in result:
                 result = result.split("```")[1].split("```")[0]
-            return json.loads(result.strip())
+            rename_list = json.loads(result.strip())
+            # 清理每个文件名
+            for item in rename_list:
+                if "new_name" in item:
+                    item["new_name"] = sanitize_filename(item["new_name"])
+            return rename_list
         except (json.JSONDecodeError, IndexError):
             return []
 
